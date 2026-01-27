@@ -113,7 +113,9 @@ export const formatTime = (timeMs: number | null | "on course"): string => {
 export const formatCompletionTime = (timestampMs: number | null | undefined): string => {
   if (!timestampMs) return "-"
   
-  const date = new Date(timestampMs)
+  // Subtract 3 hours (3 * 60 * 60 * 1000 ms) to convert to PST
+  const pstTimestampMs = timestampMs - (3 * 60 * 60 * 1000)
+  const date = new Date(pstTimestampMs)
   const hours = date.getHours().toString().padStart(2, "0")
   const minutes = date.getMinutes().toString().padStart(2, "0")
   const seconds = date.getSeconds().toString().padStart(2, "0")
@@ -122,11 +124,13 @@ export const formatCompletionTime = (timestampMs: number | null | undefined): st
   return `${hours}:${minutes}:${seconds}.${milliseconds}`
 }
 
-// Function to format full completion time with date
+// Function to format full completion time with date (PST timezone)
 export const formatCompletionTimeWithDate = (timestampMs: number | null | undefined): string => {
   if (!timestampMs) return "-"
   
-  const date = new Date(timestampMs)
+  // Subtract 3 hours (3 * 60 * 60 * 1000 ms) to convert to PST
+  const pstTimestampMs = timestampMs - (3 * 60 * 60 * 1000)
+  const date = new Date(pstTimestampMs)
   const month = (date.getMonth() + 1).toString().padStart(2, "0")
   const day = date.getDate().toString().padStart(2, "0")
   const year = date.getFullYear()
@@ -135,5 +139,5 @@ export const formatCompletionTimeWithDate = (timestampMs: number | null | undefi
   const seconds = date.getSeconds().toString().padStart(2, "0")
   const milliseconds = date.getMilliseconds().toString().padStart(3, "0")
   
-  return `${month}/${day}/${year} ${hours}:${minutes}:${seconds}.${milliseconds}`
+  return `${month}/${day}/${year} ${hours}:${minutes}:${seconds}.${milliseconds} PST`
 }

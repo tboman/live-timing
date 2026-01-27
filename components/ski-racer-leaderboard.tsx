@@ -206,21 +206,6 @@ export default function SkiRacerLeaderboard() {
       <CardHeader className="bg-gradient-to-r from-slate-800 to-slate-700 text-white">
         <div className="flex justify-between items-center">
           <CardTitle className="text-2xl">{raceName}</CardTitle>
-          <div className="space-x-2">
-            <Button
-              onClick={handleRetry}
-              variant="outline"
-              className="text-white border-white hover:bg-slate-600"
-              disabled={isLoading}
-            >
-              <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
-              {isLoading ? "Loading..." : "Refresh Data"}
-            </Button>
-            <Button onClick={toggleDebug} variant="outline" className="text-white border-white hover:bg-slate-600">
-              <Bug className="h-4 w-4 mr-2" />
-              {showDebug ? "Hide Debug" : "Debug"}
-            </Button>
-          </div>
         </div>
 
         {/* Race ID Input Form - Only show if no query parameter is provided */}
@@ -380,6 +365,20 @@ export default function SkiRacerLeaderboard() {
           </TableBody>
         </Table>
       </CardContent>
+      <div className="p-4 border-t bg-slate-50 flex space-x-2 justify-center">
+        <Button
+          onClick={handleRetry}
+          variant="outline"
+          disabled={isLoading}
+        >
+          <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
+          {isLoading ? "Loading..." : "Refresh Data"}
+        </Button>
+        <Button onClick={toggleDebug} variant="outline">
+          <Bug className="h-4 w-4 mr-2" />
+          {showDebug ? "Hide Debug" : "Debug"}
+        </Button>
+      </div>
     </Card>
   )
 }
