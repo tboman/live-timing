@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { RefreshCw, Bug, Search } from "lucide-react"
-import { fetchRaceData, convertToAppRacer, formatTime } from "@/utils/api"
+import { fetchRaceData, convertToAppRacer, formatTime, formatCompletionTime, formatCompletionTimeWithDate } from "@/utils/api"
 
 // Racer interface
 interface Racer {
@@ -25,6 +25,8 @@ interface Racer {
   run2Status?: string
   rawR1?: string
   rawR2?: string
+  // Millisecond timestamp from the live-timing `ms=` field (if provided)
+  timestamp?: number | null
 }
 
 export default function SkiRacerLeaderboard() {
@@ -40,8 +42,9 @@ export default function SkiRacerLeaderboard() {
   const [debugInfo, setDebugInfo] = useState<string>("")
   const [rawData, setRawData] = useState<string>("")
   const [showDebug, setShowDebug] = useState<boolean>(false)
-  const [raceId, setRaceId] = useState<string>(queryRaceId || "295922")
-  const [inputRaceId, setInputRaceId] = useState<string>(queryRaceId || "295922")
+  const [raceId, setRaceId] = useState<string>(queryRaceId || "299423")
+  const [inputRaceId, setInputRaceId] = useState<string>(queryRaceId || "299423")
+  const [selectedClasses, setSelectedClasses] = useState<Set<string>>(new Set())
 
   // Function to load race data from the API
   const loadRaceData = async (id = raceId) => {
@@ -60,7 +63,14 @@ export default function SkiRacerLeaderboard() {
         // Convert the API data to our app's format
         const convertedRacers = data.racers.map((racer, index) => convertToAppRacer(racer, index + 1))
 
-        setRacers(convertedRacers)
+        // Sort by completion time (timestamp) in ascending order (earliest first)
+        const sortedRacers = convertedRacers.sort((a, b) => {
+          const timeA = a.timestamp || 0
+          const timeB = b.timestamp || 0
+          return timeA - timeB
+        })
+
+        setRacers(sortedRacers)
         setRaceName(data.raceName || "Ski Race Leaderboard")
         setDebugInfo(`Found ${data.racers.length} unique racers (after handling duplicates)`)
 
@@ -117,6 +127,25 @@ export default function SkiRacerLeaderboard() {
     setRaceId(inputRaceId)
     loadRaceData(inputRaceId)
   }
+
+  // Toggle class filter
+  const toggleClassFilter = (className: string) => {
+    const newSelection = new Set(selectedClasses)
+    if (newSelection.has(className)) {
+      newSelection.delete(className)
+    } else {
+      newSelection.add(className)
+    }
+    setSelectedClasses(newSelection)
+  }
+
+  // Get unique classes from racers
+  const uniqueClasses = Array.from(new Set(racers.map((racer) => racer.class))).sort()
+
+  // Filter racers by selected classes
+  const filteredRacers = selectedClasses.size === 0
+    ? racers
+    : racers.filter((racer) => selectedClasses.has(racer.class))
 
   // Function to render run time with status
   const renderRunTime = (time: number | null | "on course", status: string) => {
@@ -222,6 +251,29 @@ export default function SkiRacerLeaderboard() {
           )}
         </div>
 
+        {/* Class Filter */}
+        {uniqueClasses.length > 0 && (
+          <div className="mt-4 p-3 bg-slate-700 rounded">
+            <div className="text-sm font-semibold text-white mb-2">Filter by Class:</div>
+            <div className="flex flex-wrap gap-2">
+              {uniqueClasses.map((className) => (
+                <Button
+                  key={className}
+                  onClick={() => toggleClassFilter(className)}
+                  variant={selectedClasses.has(className) ? "default" : "outline"}
+                  className={`text-xs ${
+                    selectedClasses.has(className)
+                      ? "bg-blue-600 border-blue-600"
+                      : "border-slate-600 text-white hover:bg-slate-600"
+                  }`}
+                >
+                  {className}
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {showDebug && (
           <div className="mt-4 p-2 bg-slate-900 rounded text-xs font-mono overflow-auto max-h-40">
             <div className="mb-2 text-slate-400">Debug Info: {debugInfo}</div>
@@ -244,15 +296,12 @@ export default function SkiRacerLeaderboard() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-12">Start</TableHead>
+              <TableHead className="w-8 text-center">#</TableHead>
               <TableHead className="w-16">Bib</TableHead>
               <TableHead>Racer</TableHead>
               <TableHead className="w-16">Club</TableHead>
               <TableHead className="w-16">Class</TableHead>
-              <TableHead className="w-36">Status</TableHead>
-              <TableHead className="w-32 text-right">Run 1</TableHead>
-              <TableHead className="w-32 text-right">Run 2</TableHead>
-              <TableHead className="w-32 text-right">Total Time</TableHead>
+              <TableHead className="w-40">Start Time</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -265,11 +314,22 @@ export default function SkiRacerLeaderboard() {
                   </div>
                 </TableCell>
               </TableRow>
-            ) : racers.length === 0 ? (
+            ) : filteredRacers.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={9} className="text-center py-8">
                   <div className="flex flex-col items-center justify-center gap-4">
-                    <span className="text-slate-500">No racers found</span>
+                    <span className="text-slate-500">
+                      {selectedClasses.size > 0 ? "No racers found in selected classes" : "No racers found"}
+                    </span>
+                    {selectedClasses.size > 0 && (
+                      <Button
+                        onClick={() => setSelectedClasses(new Set())}
+                        variant="outline"
+                        size="sm"
+                      >
+                        Clear Filters
+                      </Button>
+                    )}
                     <Button onClick={handleRetry} variant="outline" size="sm">
                       <RefreshCw className="h-4 w-4 mr-2" />
                       Retry
@@ -278,7 +338,7 @@ export default function SkiRacerLeaderboard() {
                 </TableCell>
               </TableRow>
             ) : (
-              racers.map((racer) => {
+              filteredRacers.map((racer, index) => {
                 const status = getRacerStatus(racer)
                 return (
                   <TableRow
@@ -291,7 +351,7 @@ export default function SkiRacerLeaderboard() {
                           : ""
                     }
                   >
-                    <TableCell className="font-medium">{racer.startNumber}</TableCell>
+                    <TableCell className="text-center font-medium text-gray-500">{index + 1}</TableCell>
                     <TableCell>
                       <Badge variant="secondary" className="text-sm font-mono">
                         {racer.bibNumber}
@@ -308,27 +368,10 @@ export default function SkiRacerLeaderboard() {
                         {racer.class}
                       </Badge>
                     </TableCell>
-                    <TableCell>
-                      <Badge className={`${status.color} border px-2 py-1 font-semibold`}>{status.text}</Badge>
-                    </TableCell>
-                    <TableCell className="text-right font-mono">
-                      {renderRunTime(racer.result1Time, racer.run1Status || "")}
-                    </TableCell>
-                    <TableCell className="text-right font-mono">
-                      {renderRunTime(racer.result2Time, racer.run2Status || "")}
-                    </TableCell>
-                    <TableCell className="text-right font-mono font-bold">
-                      {racer.totalTime ? (
-                        formatTime(racer.totalTime)
-                      ) : racer.run1Status === "DNS" || racer.run2Status === "DNS" ? (
-                        <span className="text-gray-500 font-semibold">DNS</span>
-                      ) : racer.run1Status === "DNF" || racer.run2Status === "DNF" ? (
-                        <span className="text-orange-500 font-semibold">DNF</span>
-                      ) : racer.run1Status === "DSQ" || racer.run2Status === "DSQ" ? (
-                        <span className="text-red-500 font-semibold">DSQ</span>
-                      ) : (
-                        "--:--.--"
-                      )}
+                    <TableCell className="w-56 font-mono text-center text-sm">
+                      <div title={formatCompletionTimeWithDate(racer.timestamp)}>
+                        {formatCompletionTime(racer.timestamp)}
+                      </div>
                     </TableCell>
                   </TableRow>
                 )

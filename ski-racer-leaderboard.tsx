@@ -33,6 +33,8 @@ interface Racer {
   position: number | null
   disqualificationReason: string | null
   dnfReason: string | null
+  // Millisecond timestamp from the live-timing `ms=` field (if present)
+  timestamp?: number | null
 }
 
 // Generate a random bib number between 1 and 300
@@ -135,7 +137,7 @@ export default function SkiRacerLeaderboard() {
   const [error, setError] = useState<string | null>(null)
 
   // Function to load race data from the API
-  const loadRaceData = async (raceId = "295190") => {
+  const loadRaceData = async (raceId = "299423") => {
     setIsLoading(true)
     setError(null)
 
@@ -566,6 +568,7 @@ export default function SkiRacerLeaderboard() {
               <TableHead className="w-20 text-center">Pos 1</TableHead>
               <TableHead className="w-32 text-right">Result 2</TableHead>
               <TableHead className="w-32 text-right">Total Time</TableHead>
+              <TableHead className="w-40">Timestamp</TableHead>
               <TableHead className="w-20 text-center">Final Pos</TableHead>
               <TableHead className="w-40 text-right">Actions</TableHead>
             </TableRow>
@@ -642,6 +645,9 @@ export default function SkiRacerLeaderboard() {
                   )}
                 </TableCell>
                 <TableCell className="text-center font-bold">{racer.position ? racer.position : "-"}</TableCell>
+                <TableCell className="w-40">
+                  {racer.timestamp ? new Date(racer.timestamp).toLocaleString() : "-"}
+                </TableCell>
                 <TableCell className="text-right">
                   {racer.status === "waiting" && (
                     <div className="flex justify-end space-x-1">

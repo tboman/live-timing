@@ -10,6 +10,8 @@ export interface LiveTimingRacer {
   run1Time: number | null | "on course"
   run2Time: number | null | "on course"
   totalTime: number | null
+  // Timestamp (milliseconds) if provided by the API via `ms=` field
+  timestamp?: number | null
   run1Status?: string
   run2Status?: string
   rawR1?: string
@@ -82,6 +84,8 @@ export const convertToAppRacer = (liveRacer: LiveTimingRacer, startNumber: numbe
     result1Time: liveRacer.run1Time,
     result2Time: liveRacer.run2Time,
     totalTime: liveRacer.totalTime,
+    // Preserve the raw timestamp (ms since epoch) from the live-timing API
+    timestamp: liveRacer.timestamp ?? null,
     run1Status: liveRacer.run1Status || "",
     run2Status: liveRacer.run2Status || "",
     rawR1: liveRacer.rawR1 || "",
@@ -103,4 +107,33 @@ export const formatTime = (timeMs: number | null | "on course"): string => {
   const milliseconds = Math.floor((totalSeconds % 1) * 100)
 
   return `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}.${milliseconds.toString().padStart(2, "0")}`
+}
+
+// Function to format completion time from millisecond timestamp (epoch time)
+export const formatCompletionTime = (timestampMs: number | null | undefined): string => {
+  if (!timestampMs) return "-"
+  
+  const date = new Date(timestampMs)
+  const hours = date.getHours().toString().padStart(2, "0")
+  const minutes = date.getMinutes().toString().padStart(2, "0")
+  const seconds = date.getSeconds().toString().padStart(2, "0")
+  const milliseconds = date.getMilliseconds().toString().padStart(3, "0")
+  
+  return `${hours}:${minutes}:${seconds}.${milliseconds}`
+}
+
+// Function to format full completion time with date
+export const formatCompletionTimeWithDate = (timestampMs: number | null | undefined): string => {
+  if (!timestampMs) return "-"
+  
+  const date = new Date(timestampMs)
+  const month = (date.getMonth() + 1).toString().padStart(2, "0")
+  const day = date.getDate().toString().padStart(2, "0")
+  const year = date.getFullYear()
+  const hours = date.getHours().toString().padStart(2, "0")
+  const minutes = date.getMinutes().toString().padStart(2, "0")
+  const seconds = date.getSeconds().toString().padStart(2, "0")
+  const milliseconds = date.getMilliseconds().toString().padStart(3, "0")
+  
+  return `${month}/${day}/${year} ${hours}:${minutes}:${seconds}.${milliseconds}`
 }

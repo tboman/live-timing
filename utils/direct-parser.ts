@@ -44,11 +44,17 @@ export function parseRaceData(data: string) {
       let run2Status = ""
       let rawR1 = ""
       let rawR2 = ""
+      let timestamp: number | null = null
 
       // Process each field to extract data
       for (const field of fields) {
         if (field.startsWith("m=")) {
           name = field.substring(2).trim()
+        } else if (field.startsWith("ms=")) {
+          // ms is usually a millisecond timestamp (epoch ms)
+          const msStr = field.substring(3).trim()
+          const msVal = Number.parseInt(msStr, 10)
+          timestamp = Number.isFinite(msVal) ? msVal : null
         } else if (field.startsWith("c=")) {
           club = field.substring(2).trim()
         } else if (field.startsWith("r1=")) {
@@ -92,6 +98,11 @@ export function parseRaceData(data: string) {
           existingRacer.rawR2 = rawR2
         }
 
+        // Merge timestamp if present (prefer the value if available)
+        if (timestamp !== null) {
+          existingRacer.timestamp = timestamp
+        }
+
         // Recalculate total time if both runs have times
         if (typeof existingRacer.run1Time === "number" && typeof existingRacer.run2Time === "number") {
           existingRacer.totalTime = existingRacer.run1Time + existingRacer.run2Time
@@ -107,6 +118,7 @@ export function parseRaceData(data: string) {
           run1Time,
           run2Time,
           totalTime,
+          timestamp,
           run1Status,
           run2Status,
           rawR1,
