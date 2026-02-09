@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { RefreshCw, Bug, Search } from "lucide-react"
+import { RefreshCw } from "lucide-react"
 import { fetchRaceData, convertToAppRacer, formatTime, formatCompletionTime, formatCompletionTimeWithDate } from "@/utils/api"
 
 // Racer interface
@@ -45,6 +45,7 @@ export default function SkiRacerLeaderboard() {
   const [raceId, setRaceId] = useState<string>(queryRaceId || "299423")
   const [inputRaceId, setInputRaceId] = useState<string>(queryRaceId || "299423")
   const [selectedClasses, setSelectedClasses] = useState<Set<string>>(new Set())
+  const [selectedClub, setSelectedClub] = useState<string | null>(null)
 
   // Function to load race data from the API
   const loadRaceData = async (id = raceId) => {
@@ -239,7 +240,19 @@ export default function SkiRacerLeaderboard() {
         {/* Class Filter */}
         {uniqueClasses.length > 0 && (
           <div className="mt-4 p-3 bg-slate-700 rounded">
-            <div className="text-sm font-semibold text-white mb-2">Filter by Class:</div>
+            <div className="flex justify-between items-center mb-2">
+              <div className="text-sm font-semibold text-white">Filter by Class:</div>
+              {selectedClub && (
+                <Button
+                  onClick={() => setSelectedClub(null)}
+                  variant="ghost"
+                  size="sm"
+                  className="text-blue-300 hover:text-blue-100 text-xs"
+                >
+                  Clear Club Selection
+                </Button>
+              )}
+            </div>
             <div className="flex flex-wrap gap-2">
               {uniqueClasses.map((className) => (
                 <Button
@@ -259,23 +272,7 @@ export default function SkiRacerLeaderboard() {
           </div>
         )}
 
-        {showDebug && (
-          <div className="mt-4 p-2 bg-slate-900 rounded text-xs font-mono overflow-auto max-h-40">
-            <div className="mb-2 text-slate-400">Debug Info: {debugInfo}</div>
-            <div className="text-slate-400">Raw Data Sample:</div>
-            <pre className="text-green-300 whitespace-pre-wrap">{rawData}</pre>
-            <div className="mt-2 text-slate-400">Status Debug:</div>
-            <div className="text-yellow-300">
-              {racers.slice(0, 5).map((racer, index) => (
-                <div key={index}>
-                  Bib {racer.bibNumber}: r1="{racer.rawR1}" → status="{racer.run1Status}", r2="{racer.rawR2}" → status="
-                  {racer.run2Status}", time1={typeof racer.result1Time === "number" ? "number" : racer.result1Time},
-                  time2={typeof racer.result2Time === "number" ? "number" : racer.result2Time}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
+
       </CardHeader>
       <CardContent className="p-0">
         <Table>
@@ -325,16 +322,19 @@ export default function SkiRacerLeaderboard() {
             ) : (
               filteredRacers.map((racer, index) => {
                 const status = getRacerStatus(racer)
+                const isClubHighlighted = selectedClub && selectedClub === racer.club
                 return (
                   <TableRow
                     key={racer.id}
-                    className={
-                      racer.run1Status === "DNS" || racer.run2Status === "DNS"
-                        ? "bg-gray-50"
-                        : racer.totalTime
-                          ? "bg-slate-50"
-                          : ""
-                    }
+                    className={`${
+                      isClubHighlighted
+                        ? "bg-blue-100"
+                        : racer.run1Status === "DNS" || racer.run2Status === "DNS"
+                          ? "bg-gray-50"
+                          : racer.totalTime
+                            ? "bg-slate-50"
+                            : ""
+                    }`}
                   >
                     <TableCell className="text-center font-medium text-gray-500">{index + 1}</TableCell>
                     <TableCell>
@@ -344,7 +344,15 @@ export default function SkiRacerLeaderboard() {
                     </TableCell>
                     <TableCell>{racer.name}</TableCell>
                     <TableCell>
-                      <Badge variant="outline" className="font-mono">
+                      <Badge 
+                        variant="outline" 
+                        className={`font-mono cursor-pointer transition-colors ${
+                          selectedClub === racer.club
+                            ? "bg-blue-500 text-white border-blue-500 hover:bg-blue-600"
+                            : "hover:bg-slate-100"
+                        }`}
+                        onClick={() => setSelectedClub(selectedClub === racer.club ? null : racer.club)}
+                      >
                         {racer.club}
                       </Badge>
                     </TableCell>
@@ -373,10 +381,6 @@ export default function SkiRacerLeaderboard() {
         >
           <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? "animate-spin" : ""}`} />
           {isLoading ? "Loading..." : "Refresh Data"}
-        </Button>
-        <Button onClick={toggleDebug} variant="outline">
-          <Bug className="h-4 w-4 mr-2" />
-          {showDebug ? "Hide Debug" : "Debug"}
         </Button>
       </div>
     </Card>
