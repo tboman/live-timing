@@ -44,17 +44,14 @@ export function parseRaceData(data: string) {
       let run2Status = ""
       let rawR1 = ""
       let rawR2 = ""
-      let timestamp: number | null = null
+      let rawMs = "" // Store raw ms value for analysis
+      let startTime: number | null = null // Start timestamp from field "1=...=value"
+      let r1RawValue: number | null = null // Declare r1RawValue variable
 
       // Process each field to extract data
       for (const field of fields) {
         if (field.startsWith("m=")) {
           name = field.substring(2).trim()
-        } else if (field.startsWith("ms=")) {
-          // ms is usually a millisecond timestamp (epoch ms)
-          const msStr = field.substring(3).trim()
-          const msVal = Number.parseInt(msStr, 10)
-          timestamp = Number.isFinite(msVal) ? msVal : null
         } else if (field.startsWith("c=")) {
           club = field.substring(2).trim()
         } else if (field.startsWith("r1=")) {
@@ -63,6 +60,7 @@ export function parseRaceData(data: string) {
           const result = parseTimeString(timeStr)
           run1Time = result.time
           run1Status = result.status
+          r1RawValue = result.rawValue // Assign raw r1 value to r1RawValue
         } else if (field.startsWith("r2=")) {
           const timeStr = field.substring(3).trim()
           rawR2 = timeStr // Store raw r2 value
@@ -72,12 +70,32 @@ export function parseRaceData(data: string) {
         } else if (field.startsWith("s=")) {
           // Use the actual class value from the data
           raceClass = field.substring(2).trim()
+        } else if (field.startsWith("ms=")) {
+          // Capture the ms field (finish timestamp)
+          rawMs = field.substring(3).trim()
+        } else if (field.startsWith("1=")) {
+          // Field "1=...=value" contains the start timestamp as the last value
+          // e.g., "1=569463821.73936=769464275.45383"
+          const parts = field.substring(2).split("=")
+          if (parts.length >= 2) {
+            const lastValue = parts[parts.length - 1].trim()
+            startTime = Number.parseFloat(lastValue)
+            if (isNaN(startTime)) startTime = null
+          }
         }
       }
 
-      // Calculate total time
+      // Calculate total time as the difference between ms (finish timestamp) and start time
       let totalTime: number | null = null
-      if (typeof run1Time === "number" && typeof run2Time === "number") {
+      if (rawMs && startTime !== null) {
+        // Total time = ms - startTime (both are timestamps in hundredths of a second)
+        const msValue = Number.parseFloat(rawMs)
+        if (!isNaN(msValue)) {
+          const diff = msValue - startTime
+          totalTime = diff * 10 // Convert hundredths to milliseconds
+        }
+      } else if (typeof run1Time === "number" && typeof run2Time === "number") {
+        // Fallback: calculate from r1 + r2
         totalTime = run1Time + run2Time
       }
 
@@ -98,11 +116,6 @@ export function parseRaceData(data: string) {
           existingRacer.rawR2 = rawR2
         }
 
-        // Merge timestamp if present (prefer the value if available)
-        if (timestamp !== null) {
-          existingRacer.timestamp = timestamp
-        }
-
         // Recalculate total time if both runs have times
         if (typeof existingRacer.run1Time === "number" && typeof existingRacer.run2Time === "number") {
           existingRacer.totalTime = existingRacer.run1Time + existingRacer.run2Time
@@ -118,11 +131,11 @@ export function parseRaceData(data: string) {
           run1Time,
           run2Time,
           totalTime,
-          timestamp,
           run1Status,
           run2Status,
           rawR1,
           rawR2,
+          rawMs,
         })
       }
     } catch (err) {
@@ -158,15 +171,24 @@ export function parseRaceData(data: string) {
   return { raceName, racers }
 }
 
-function parseTimeString(timeStr: string | null): { time: number | null | "on course"; status: string } {
-  if (!timeStr) return { time: null, status: "" }
+function parseTimeString(timeStr: string | null): { time: number | null | "on course"; status: string; rawValue: number | null } {
+  if (!timeStr) return { time: null, status: "", rawValue: null }
 
-  // Check for status prefixes instead of exact matches
-  if (timeStr.startsWith("DNS")) return { time: null, status: "DNS" }
-  if (timeStr.startsWith("DNF")) return { time: null, status: "DNF" }
-  if (timeStr.startsWith("DSQ")) return { time: null, status: "DSQ" }
+  // Check for status prefixes and extract the numeric value after "="
+  if (timeStr.startsWith("DNS")) {
+    const value = timeStr.includes("=") ? Number.parseFloat(timeStr.split("=")[1]) : null
+    return { time: null, status: "DNS", rawValue: value }
+  }
+  if (timeStr.startsWith("DNF")) {
+    const value = timeStr.includes("=") ? Number.parseFloat(timeStr.split("=")[1]) : null
+    return { time: null, status: "DNF", rawValue: value }
+  }
+  if (timeStr.startsWith("DSQ")) {
+    const value = timeStr.includes("=") ? Number.parseFloat(timeStr.split("=")[1]) : null
+    return { time: null, status: "DSQ", rawValue: value }
+  }
 
-  if (timeStr.toLowerCase().includes("on course")) return { time: "on course", status: "on course" }
+  if (timeStr.toLowerCase().includes("on course")) return { time: "on course", status: "on course", rawValue: null }
 
   try {
     if (timeStr.includes(":")) {
@@ -174,14 +196,16 @@ function parseTimeString(timeStr: string | null): { time: number | null | "on co
       return {
         time: (Number.parseInt(minutes, 10) * 60 + Number.parseFloat(seconds)) * 1000,
         status: "",
+        rawValue: null,
       }
     } else {
       return {
         time: Number.parseFloat(timeStr) * 1000,
         status: "",
+        rawValue: null,
       }
     }
   } catch (e) {
-    return { time: null, status: "" }
+    return { time: null, status: "", rawValue: null }
   }
 }
