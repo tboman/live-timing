@@ -44,8 +44,9 @@ export default function SkiRacerLeaderboard() {
   const [showDebug, setShowDebug] = useState<boolean>(false)
   const [raceId, setRaceId] = useState<string>(queryRaceId || "299423")
   const [inputRaceId, setInputRaceId] = useState<string>(queryRaceId || "299423")
-  const [selectedClasses, setSelectedClasses] = useState<Set<string>>(new Set())
   const [selectedClub, setSelectedClub] = useState<string | null>(null)
+  const [sortColumn, setSortColumn] = useState<"bib" | "run1" | "run2" | "total">("total")
+  const [sortAscending, setSortAscending] = useState<boolean>(false)
 
   // Function to load race data from the API
   const loadRaceData = async (id = raceId) => {
@@ -129,24 +130,56 @@ export default function SkiRacerLeaderboard() {
     loadRaceData(inputRaceId)
   }
 
-  // Toggle class filter
-  const toggleClassFilter = (className: string) => {
-    const newSelection = new Set(selectedClasses)
-    if (newSelection.has(className)) {
-      newSelection.delete(className)
+  // Filter racers - no class filtering
+  const filteredRacers = racers
+
+  // Sort racers based on selected column
+  const sortedRacers = [...filteredRacers].sort((a, b) => {
+    // Check if racers have DNS or DNF status - push to bottom
+    const aHasDNSOrDNF = a.run1Status === "DNS" || a.run2Status === "DNS" || a.run1Status === "DNF" || a.run2Status === "DNF"
+    const bHasDNSOrDNF = b.run1Status === "DNS" || b.run2Status === "DNS" || b.run1Status === "DNF" || b.run2Status === "DNF"
+
+    // If only one has DNS/DNF, that one goes to the bottom
+    if (aHasDNSOrDNF && !bHasDNSOrDNF) return 1
+    if (!aHasDNSOrDNF && bHasDNSOrDNF) return -1
+    
+    // If both have DNS/DNF, keep original order
+    if (aHasDNSOrDNF && bHasDNSOrDNF) return 0
+
+    let aValue: number | string = 0
+    let bValue: number | string = 0
+
+    if (sortColumn === "bib") {
+      aValue = a.bibNumber
+      bValue = b.bibNumber
+    } else if (sortColumn === "run1") {
+      aValue = typeof a.result1Time === "number" ? a.result1Time : Infinity
+      bValue = typeof b.result1Time === "number" ? b.result1Time : Infinity
+    } else if (sortColumn === "run2") {
+      aValue = typeof a.result2Time === "number" ? a.result2Time : Infinity
+      bValue = typeof b.result2Time === "number" ? b.result2Time : Infinity
     } else {
-      newSelection.add(className)
+      aValue = a.totalTime ?? Infinity
+      bValue = b.totalTime ?? Infinity
     }
-    setSelectedClasses(newSelection)
+
+    if (typeof aValue === "string" || typeof bValue === "string") {
+      return sortAscending 
+        ? String(aValue).localeCompare(String(bValue))
+        : String(bValue).localeCompare(String(aValue))
+    }
+    return sortAscending ? aValue - bValue : bValue - aValue
+  })
+
+  // Handle sort column click
+  const handleSortClick = (column: "bib" | "run1" | "run2" | "total") => {
+    if (sortColumn === column) {
+      setSortAscending(!sortAscending)
+    } else {
+      setSortColumn(column)
+      setSortAscending(false)
+    }
   }
-
-  // Get unique classes from racers
-  const uniqueClasses = Array.from(new Set(racers.map((racer) => racer.class))).sort()
-
-  // Filter racers by selected classes
-  const filteredRacers = selectedClasses.size === 0
-    ? racers
-    : racers.filter((racer) => selectedClasses.has(racer.class))
 
   // Function to render run time with status
   const renderRunTime = (time: number | null | "on course", status: string) => {
@@ -237,53 +270,39 @@ export default function SkiRacerLeaderboard() {
           )}
         </div>
 
-        {/* Class Filter */}
-        {uniqueClasses.length > 0 && (
-          <div className="mt-4 p-3 bg-slate-700 rounded">
-            <div className="flex justify-between items-center mb-2">
-              <div className="text-sm font-semibold text-white">Filter by Class:</div>
-              {selectedClub && (
-                <Button
-                  onClick={() => setSelectedClub(null)}
-                  variant="ghost"
-                  size="sm"
-                  className="text-blue-300 hover:text-blue-100 text-xs"
-                >
-                  Clear Club Selection
-                </Button>
-              )}
-            </div>
-            <div className="flex flex-wrap gap-2">
-              {uniqueClasses.map((className) => (
-                <Button
-                  key={className}
-                  onClick={() => toggleClassFilter(className)}
-                  variant={selectedClasses.has(className) ? "default" : "outline"}
-                  className={`text-xs ${
-                    selectedClasses.has(className)
-                      ? "bg-blue-600 border-blue-600"
-                      : "border-slate-600 text-white hover:bg-slate-600"
-                  }`}
-                >
-                  {className}
-                </Button>
-              ))}
-            </div>
-          </div>
-        )}
-
-
       </CardHeader>
       <CardContent className="p-0">
         <Table>
           <TableHeader>
             <TableRow>
               <TableHead className="w-8 text-center">#</TableHead>
-              <TableHead className="w-16">Bib</TableHead>
+              <TableHead 
+                className="w-16 cursor-pointer hover:bg-slate-100 transition-colors"
+                onClick={() => handleSortClick("bib")}
+              >
+                Bib {sortColumn === "bib" && (sortAscending ? "↑" : "↓")}
+              </TableHead>
               <TableHead>Racer</TableHead>
               <TableHead className="w-16">Club</TableHead>
               <TableHead className="w-16">Class</TableHead>
-              <TableHead className="w-40">Start Time</TableHead>
+              <TableHead 
+                className="w-20 text-center cursor-pointer hover:bg-slate-100 transition-colors"
+                onClick={() => handleSortClick("run1")}
+              >
+                Run 1 {sortColumn === "run1" && (sortAscending ? "↑" : "↓")}
+              </TableHead>
+              <TableHead 
+                className="w-20 text-center cursor-pointer hover:bg-slate-100 transition-colors"
+                onClick={() => handleSortClick("run2")}
+              >
+                Run 2 {sortColumn === "run2" && (sortAscending ? "↑" : "↓")}
+              </TableHead>
+              <TableHead 
+                className="w-20 text-center cursor-pointer hover:bg-slate-100 transition-colors"
+                onClick={() => handleSortClick("total")}
+              >
+                Total Time {sortColumn === "total" && (sortAscending ? "↑" : "↓")}
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -301,17 +320,8 @@ export default function SkiRacerLeaderboard() {
                 <TableCell colSpan={9} className="text-center py-8">
                   <div className="flex flex-col items-center justify-center gap-4">
                     <span className="text-slate-500">
-                      {selectedClasses.size > 0 ? "No racers found in selected classes" : "No racers found"}
+                      No racers found
                     </span>
-                    {selectedClasses.size > 0 && (
-                      <Button
-                        onClick={() => setSelectedClasses(new Set())}
-                        variant="outline"
-                        size="sm"
-                      >
-                        Clear Filters
-                      </Button>
-                    )}
                     <Button onClick={handleRetry} variant="outline" size="sm">
                       <RefreshCw className="h-4 w-4 mr-2" />
                       Retry
@@ -320,7 +330,7 @@ export default function SkiRacerLeaderboard() {
                 </TableCell>
               </TableRow>
             ) : (
-              filteredRacers.map((racer, index) => {
+              sortedRacers.map((racer, index) => {
                 const status = getRacerStatus(racer)
                 const isClubHighlighted = selectedClub && selectedClub === racer.club
                 return (
@@ -361,10 +371,14 @@ export default function SkiRacerLeaderboard() {
                         {racer.class}
                       </Badge>
                     </TableCell>
-                    <TableCell className="w-56 font-mono text-center text-sm">
-                      <div title={formatCompletionTimeWithDate(racer.timestamp)}>
-                        {formatCompletionTime(racer.timestamp)}
-                      </div>
+                    <TableCell className="w-20 font-mono text-center text-sm">
+                      {renderRunTime(racer.result1Time, racer.run1Status || "")}
+                    </TableCell>
+                    <TableCell className="w-20 font-mono text-center text-sm">
+                      {renderRunTime(racer.result2Time, racer.run2Status || "")}
+                    </TableCell>
+                    <TableCell className="w-20 font-mono text-center text-sm font-semibold">
+                      {typeof racer.totalTime === "number" ? formatTime(racer.totalTime) : "--:--.--"}
                     </TableCell>
                   </TableRow>
                 )
