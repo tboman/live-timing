@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { RefreshCw } from "lucide-react"
+import { RefreshCw, Search } from "lucide-react"
 import { fetchRaceData, convertToAppRacer, formatTime, formatCompletionTime, formatCompletionTimeWithDate } from "@/utils/api"
 
 // Racer interface
@@ -49,9 +49,15 @@ export default function SkiRacerLeaderboard() {
   const [sortAscending, setSortAscending] = useState<boolean>(false)
 
   // Function to load race data from the API
-  const loadRaceData = async (id = raceId) => {
+  const loadRaceData = async (id: string) => {
     setIsLoading(true)
     setError(null)
+
+    if (!id) {
+      setError("No race ID available to load data.");
+      setIsLoading(false);
+      return;
+    }
 
     try {
       const data = await fetchRaceData(id)
@@ -93,30 +99,42 @@ export default function SkiRacerLeaderboard() {
 
   // Load race data on component mount and when raceId changes
   useEffect(() => {
-    loadRaceData()
-
-    // Set up auto-refresh every 30 seconds
-    const intervalId = setInterval(() => {
-      loadRaceData()
-    }, 30000)
+    loadRaceData(raceId)
 
     // Clean up interval on component unmount
-    return () => clearInterval(intervalId)
+    return () => {} // Return empty cleanup function
   }, [raceId]) // Re-run when raceId changes
-
-  // Update raceId when query parameter changes
-  useEffect(() => {
-    if (queryRaceId) {
-      setRaceId(queryRaceId)
-      setInputRaceId(queryRaceId)
-      loadRaceData(queryRaceId)
-    }
-  }, [queryRaceId])
 
   // Function to manually retry loading data
   const handleRetry = () => {
-    loadRaceData()
+    loadRaceData(raceId)
   }
+
+  // Synchronize raceId state with query parameter and input field
+  useEffect(() => {
+    // Case 1: queryRaceId is present in the URL
+    if (queryRaceId) {
+      // If the current raceId state is different from queryRaceId, update it.
+      // This ensures the URL parameter is always honored.
+      if (raceId !== queryRaceId) {
+        setRaceId(queryRaceId)
+      }
+      // Also ensure the input field reflects the queryRaceId, but only if it's not already.
+      if (inputRaceId !== queryRaceId) {
+        setInputRaceId(queryRaceId)
+      }
+    } else {
+      // Case 2: queryRaceId is NOT present in the URL
+      // The raceId state should then be driven by the inputRaceId.
+      // If raceId state is different from the current inputRaceId, update it.
+      const effectiveInputRaceId = inputRaceId || "299423";
+      if (raceId !== effectiveInputRaceId) {
+        setRaceId(effectiveInputRaceId)
+      }
+      // inputRaceId itself is already managed by its onChange handler.
+    }
+  }, [queryRaceId, raceId, inputRaceId]) // Ensure all relevant states are dependencies
+
 
   // Toggle debug mode
   const toggleDebug = () => {
@@ -127,14 +145,10 @@ export default function SkiRacerLeaderboard() {
   const handleRaceIdSubmit = (e: FormEvent) => {
     e.preventDefault()
     setRaceId(inputRaceId)
-    loadRaceData(inputRaceId)
   }
 
-  // Filter racers - no class filtering
-  const filteredRacers = racers
-
   // Sort racers based on selected column
-  const sortedRacers = [...filteredRacers].sort((a, b) => {
+  const sortedRacers = [...racers].sort((a, b) => {
     // Check if racers have DNS or DNF status - push to bottom
     const aHasDNSOrDNF = a.run1Status === "DNS" || a.run2Status === "DNS" || a.run1Status === "DNF" || a.run2Status === "DNF"
     const bHasDNSOrDNF = b.run1Status === "DNS" || b.run2Status === "DNS" || b.run1Status === "DNF" || b.run2Status === "DNF"
@@ -167,6 +181,10 @@ export default function SkiRacerLeaderboard() {
       return sortAscending 
         ? String(aValue).localeCompare(String(bValue))
         : String(bValue).localeCompare(String(aValue))
+    }
+    // For time columns, invert the logic: lower times are better (faster)
+    if (sortColumn !== "bib") {
+      return sortAscending ? bValue - aValue : aValue - bValue
     }
     return sortAscending ? aValue - bValue : bValue - aValue
   })
@@ -252,6 +270,7 @@ export default function SkiRacerLeaderboard() {
                 value={inputRaceId}
                 onChange={(e) => setInputRaceId(e.target.value)}
                 className="bg-slate-700 border-slate-600 text-white placeholder:text-slate-400"
+                disabled={!!queryRaceId}
               />
             </div>
             <Button type="submit" variant="secondary" disabled={isLoading}>
@@ -315,7 +334,7 @@ export default function SkiRacerLeaderboard() {
                   </div>
                 </TableCell>
               </TableRow>
-            ) : filteredRacers.length === 0 ? (
+            ) : racers.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={9} className="text-center py-8">
                   <div className="flex flex-col items-center justify-center gap-4">
@@ -329,23 +348,23 @@ export default function SkiRacerLeaderboard() {
                   </div>
                 </TableCell>
               </TableRow>
-            ) : (
-              sortedRacers.map((racer, index) => {
-                const status = getRacerStatus(racer)
-                const isClubHighlighted = selectedClub && selectedClub === racer.club
-                return (
-                  <TableRow
-                    key={racer.id}
-                    className={`${
-                      isClubHighlighted
-                        ? "bg-blue-100"
-                        : racer.run1Status === "DNS" || racer.run2Status === "DNS"
-                          ? "bg-gray-50"
-                          : racer.totalTime
-                            ? "bg-slate-50"
-                            : ""
-                    }`}
-                  >
+                        ) : (
+                          sortedRacers.map((racer, index) => {
+                            const status = getRacerStatus(racer)
+                            const isClubHighlighted = selectedClub && selectedClub === racer.club
+                            return (
+                              <TableRow
+                                key={racer.id}
+                                className={`${
+                                  isClubHighlighted
+                                    ? "bg-blue-100"
+                                    : racer.run1Status === "DNS" || racer.run2Status === "DNS"
+                                      ? "bg-gray-50"
+                                      : racer.totalTime
+                                        ? "bg-slate-50"
+                                        : ""
+                                }`}
+                              >
                     <TableCell className="text-center font-medium text-gray-500">{index + 1}</TableCell>
                     <TableCell>
                       <Badge variant="secondary" className="text-sm font-mono">
@@ -378,7 +397,7 @@ export default function SkiRacerLeaderboard() {
                       {renderRunTime(racer.result2Time, racer.run2Status || "")}
                     </TableCell>
                     <TableCell className="w-20 font-mono text-center text-sm font-semibold">
-                      {typeof racer.totalTime === "number" ? formatTime(racer.totalTime) : "--:--.--"}
+                      {typeof racer.totalTime === "number" && !Number.isNaN(racer.totalTime) ? formatTime(racer.totalTime) : "--:--.--"}
                     </TableCell>
                   </TableRow>
                 )

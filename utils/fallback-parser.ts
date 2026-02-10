@@ -20,112 +20,151 @@ export function parseFallbackRaceData(data: string) {
     const line = lines[i].trim()
     if (!line) continue
 
-    // Check if this line contains a bib number field
-    const bibIndex = line.indexOf("|b=")
-    if (bibIndex === -1) continue
+    // Split the line by "|b=" to get each racer section.
+    // The first part won't have a racer if it's just header info or empty, so we'll skip it.
+    const racerSections = line.split("|b=")
 
-    try {
-      // Extract the part of the line starting from "|b="
-      const racerData = line.substring(bibIndex + 1) // +1 to skip the leading |
-
-      // Split into fields
-      const fields = racerData.split("|")
-
-      // Extract bib number
-      const bibField = fields[0] // Should be "b=NUMBER"
-      const bibStr = bibField.substring(2).trim()
-      const bib = Number.parseInt(bibStr, 10) || racerId
-
-      // Initialize other racer data
-      let name = `Racer ${bib}`
-      let club = "---"
-      let run1Time: number | null | "on course" = null
-      let run2Time: number | null | "on course" = null
-      let raceClass = "Unknown" // Default class
-      let run1Status = ""
-      let run2Status = ""
-      let rawR1 = ""
-      let rawR2 = ""
-      let timestamp: number | null = null
-
-      // Process each field to extract data
-      for (const field of fields) {
-        if (field.startsWith("m=")) {
-          name = field.substring(2).trim()
-        } else if (field.startsWith("ms=")) {
-          const msStr = field.substring(3).trim()
-          const msVal = Number.parseInt(msStr, 10)
-          timestamp = Number.isFinite(msVal) ? msVal : null
-        } else if (field.startsWith("c=")) {
-          club = field.substring(2).trim()
-        } else if (field.startsWith("r1=")) {
-          const timeStr = field.substring(3).trim()
-          rawR1 = timeStr // Store raw r1 value
-          const result = parseTimeString(timeStr)
-          run1Time = result.time
-          run1Status = result.status
-        } else if (field.startsWith("r2=")) {
-          const timeStr = field.substring(3).trim()
-          rawR2 = timeStr // Store raw r2 value
-          const result = parseTimeString(timeStr)
-          run2Time = result.time
-          run2Status = result.status
-        } else if (field.startsWith("g=")) {
-          // Use the actual class value from the data
-          raceClass = field.substring(2).trim()
-        }
+    // Process each racer section (skip the first one which might be header info or empty)
+    for (let j = 0; j < racerSections.length; j++) {
+      if (j === 0 && !line.startsWith("b=")) {
+        // If the line doesn't start with "b=", the first segment is not a racer.
+        // It's either header info or just empty leading content.
+        continue;
       }
+      
+      try {
+        const section = "b=" + racerSections[j];
 
-      // Calculate total time
-      let totalTime: number | null = null
-      if (typeof run1Time === "number" && typeof run2Time === "number") {
-        totalTime = run1Time + run2Time
+        // Split the section by pipe character to get fields
+        const fields = section.split("|")
+
+        // Extract bib number (first field should be "b=NUMBER")
+        const bibStr = fields[0].substring(2).trim()
+        const bib = Number.parseInt(bibStr, 10) || racerId
+
+        // Initialize other racer data
+        let name = `Racer ${bib}`
+        let club = "---"
+        let run1Time: number | null | "on course" = null
+        let run2Time: number | null | "on course" = null
+        let raceClass = "Unknown" // Default class
+        let run1Status = ""
+        let run2Status = ""
+        let rawR1 = ""
+        let rawR2 = ""
+        let timestamp: number | null = null
+
+        // Process each field to extract data
+        for (const field of fields) {
+          if (field.startsWith("m=")) {
+            name = field.substring(2).trim()
+          } else if (field.startsWith("ms=")) {
+            const msStr = field.substring(3).trim()
+            const msVal = Number.parseInt(msStr, 10)
+            timestamp = Number.isFinite(msVal) ? msVal : null
+          } else if (field.startsWith("c=")) {
+            club = field.substring(2).trim()
+          } else if (field.startsWith("r1=")) {
+            const timeStr = field.substring(3).trim()
+            rawR1 = timeStr // Store raw r1 value
+            const result = parseTimeString(timeStr)
+            run1Time = result.time
+            run1Status = result.status
+            // Safety check: if run1Time is NaN, convert to null and mark as DNS
+            if (typeof run1Time === "number" && Number.isNaN(run1Time)) {
+              run1Time = null
+              run1Status = "DNS"
+            }
+          } else if (field.startsWith("r2=")) {
+            const timeStr = field.substring(3).trim()
+            rawR2 = timeStr // Store raw r2 value
+            const result = parseTimeString(timeStr)
+            run2Time = result.time
+            run2Status = result.status
+            // Safety check: if run2Time is NaN, convert to null and mark as DNS
+            if (typeof run2Time === "number" && Number.isNaN(run2Time)) {
+              run2Time = null
+              run2Status = "DNS"
+            }
+          } else if (field.startsWith("g=")) {
+            // Use the actual class value from the data
+            raceClass = field.substring(2).trim()
+          }
+        }
+
+        // Calculate total time
+        let totalTime: number | null = null
+        if (typeof run1Time === "number" && typeof run2Time === "number") {
+          totalTime = run1Time + run2Time
+          // If totalTime is NaN, set it to null and mark as DNS
+          if (Number.isNaN(totalTime)) {
+            totalTime = null
+            run1Status = "DNS"
+            run2Status = "DNS"
+          }
+        }
+
+        // Check if we already have a racer with this bib number
+        if (racersMap.has(bib)) {
+          const existingRacer = racersMap.get(bib)
+
+          // Merge the data, prioritizing actual times over DNS/DNF
+          if (typeof run1Time === "number" || (run1Time === "on course" && existingRacer.run1Time === null)) {
+            existingRacer.run1Time = run1Time
+            existingRacer.run1Status = run1Status
+            existingRacer.rawR1 = rawR1
+            // Safety check: if run1Time is NaN, convert to null
+            if (typeof existingRacer.run1Time === "number" && Number.isNaN(existingRacer.run1Time)) {
+              existingRacer.run1Time = null
+              existingRacer.run1Status = "DNS"
+            }
+          }
+
+          if (typeof run2Time === "number" || (run2Time === "on course" && existingRacer.run2Time === null)) {
+            existingRacer.run2Time = run2Time
+            existingRacer.run2Status = run2Status
+            existingRacer.rawR2 = rawR2
+            // Safety check: if run2Time is NaN, convert to null
+            if (typeof existingRacer.run2Time === "number" && Number.isNaN(existingRacer.run2Time)) {
+              existingRacer.run2Time = null
+              existingRacer.run2Status = "DNS"
+            }
+          }
+
+          if (timestamp !== null) {
+            existingRacer.timestamp = timestamp
+          }
+          // Recalculate total time if both runs have times
+          if (typeof existingRacer.run1Time === "number" && typeof existingRacer.run2Time === "number") {
+            existingRacer.totalTime = existingRacer.run1Time + existingRacer.run2Time
+            // If totalTime is NaN, set it to null and mark as DNS
+            if (Number.isNaN(existingRacer.totalTime)) {
+              existingRacer.totalTime = null
+              existingRacer.run1Status = "DNS"
+              existingRacer.run2Status = "DNS"
+            }
+          }
+        } else {
+          // Add new racer to the map
+          racersMap.set(bib, {
+            id: racerId++,
+            name,
+            bibNumber: bib,
+            club,
+            class: raceClass,
+            run1Time,
+            run2Time,
+            totalTime,
+            timestamp,
+            run1Status,
+            run2Status,
+            rawR1,
+            rawR2,
+          })
+        }
+      } catch (err) {
+        console.error(`Error parsing racer segment in line ${i}, segment ${j}:`, err)
       }
-
-      // Check if we already have a racer with this bib number
-      if (racersMap.has(bib)) {
-        const existingRacer = racersMap.get(bib)
-
-        // Merge the data, prioritizing actual times over DNS/DNF
-        if (typeof run1Time === "number" || (run1Time === "on course" && existingRacer.run1Time === null)) {
-          existingRacer.run1Time = run1Time
-          existingRacer.run1Status = run1Status
-          existingRacer.rawR1 = rawR1
-        }
-
-        if (typeof run2Time === "number" || (run2Time === "on course" && existingRacer.run2Time === null)) {
-          existingRacer.run2Time = run2Time
-          existingRacer.run2Status = run2Status
-          existingRacer.rawR2 = rawR2
-        }
-
-        if (timestamp !== null) {
-          existingRacer.timestamp = timestamp
-        }
-        // Recalculate total time if both runs have times
-        if (typeof existingRacer.run1Time === "number" && typeof existingRacer.run2Time === "number") {
-          existingRacer.totalTime = existingRacer.run1Time + existingRacer.run2Time
-        }
-      } else {
-        // Add new racer to the map
-        racersMap.set(bib, {
-          id: racerId++,
-          name,
-          bibNumber: bib,
-          club,
-          class: raceClass,
-          run1Time,
-          run2Time,
-          totalTime,
-          timestamp,
-          run1Status,
-          run2Status,
-          rawR1,
-          rawR2,
-        })
-      }
-    } catch (err) {
-      console.error(`Error parsing line ${i}:`, err)
     }
   }
 
@@ -167,20 +206,31 @@ function parseTimeString(timeStr: string | null): { time: number | null | "on co
 
   if (timeStr.toLowerCase().includes("on course")) return { time: "on course", status: "on course" }
 
+  // Check for "--:--.-" or similar patterns (missing times)
+  if (timeStr.includes("--")) return { time: null, status: "DNS" }
+
   try {
     if (timeStr.includes(":")) {
       const [minutes, seconds] = timeStr.split(":")
+      const parsedTime = (Number.parseInt(minutes, 10) * 60 + Number.parseFloat(seconds)) * 1000
+      if (Number.isNaN(parsedTime)) {
+        return { time: null, status: "DNS" }
+      }
       return {
-        time: (Number.parseInt(minutes, 10) * 60 + Number.parseFloat(seconds)) * 1000,
+        time: parsedTime,
         status: "",
       }
     } else {
+      const parsedTime = Number.parseFloat(timeStr) * 1000
+      if (Number.isNaN(parsedTime)) {
+        return { time: null, status: "DNS" }
+      }
       return {
-        time: Number.parseFloat(timeStr) * 1000,
+        time: parsedTime,
         status: "",
       }
     }
   } catch (e) {
-    return { time: null, status: "" }
+    return { time: null, status: "DNS" }
   }
 }

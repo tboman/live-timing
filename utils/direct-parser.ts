@@ -63,12 +63,22 @@ export function parseRaceData(data: string) {
           const result = parseTimeString(timeStr)
           run1Time = result.time
           run1Status = result.status
+          // Safety check: if run1Time is NaN, convert to null and mark as DNS
+          if (typeof run1Time === "number" && Number.isNaN(run1Time)) {
+            run1Time = null
+            run1Status = "DNS"
+          }
         } else if (field.startsWith("r2=")) {
           const timeStr = field.substring(3).trim()
           rawR2 = timeStr // Store raw r2 value
           const result = parseTimeString(timeStr)
           run2Time = result.time
           run2Status = result.status
+          // Safety check: if run2Time is NaN, convert to null and mark as DNS
+          if (typeof run2Time === "number" && Number.isNaN(run2Time)) {
+            run2Time = null
+            run2Status = "DNS"
+          }
         } else if (field.startsWith("s=")) {
           // Use the actual class value from the data
           raceClass = field.substring(2).trim()
@@ -79,6 +89,12 @@ export function parseRaceData(data: string) {
       let totalTime: number | null = null
       if (typeof run1Time === "number" && typeof run2Time === "number") {
         totalTime = run1Time + run2Time
+        // If totalTime is NaN, set it to null and mark as DNS
+        if (Number.isNaN(totalTime)) {
+          totalTime = null
+          run1Status = "DNS"
+          run2Status = "DNS"
+        }
       }
 
       // Check if we already have a racer with this bib number
@@ -90,12 +106,22 @@ export function parseRaceData(data: string) {
           existingRacer.run1Time = run1Time
           existingRacer.run1Status = run1Status
           existingRacer.rawR1 = rawR1
+          // Safety check: if run1Time is NaN, convert to null
+          if (typeof existingRacer.run1Time === "number" && Number.isNaN(existingRacer.run1Time)) {
+            existingRacer.run1Time = null
+            existingRacer.run1Status = "DNS"
+          }
         }
 
         if (typeof run2Time === "number" || (run2Time === "on course" && existingRacer.run2Time === null)) {
           existingRacer.run2Time = run2Time
           existingRacer.run2Status = run2Status
           existingRacer.rawR2 = rawR2
+          // Safety check: if run2Time is NaN, convert to null
+          if (typeof existingRacer.run2Time === "number" && Number.isNaN(existingRacer.run2Time)) {
+            existingRacer.run2Time = null
+            existingRacer.run2Status = "DNS"
+          }
         }
 
         // Merge timestamp if present (prefer the value if available)
@@ -106,6 +132,12 @@ export function parseRaceData(data: string) {
         // Recalculate total time if both runs have times
         if (typeof existingRacer.run1Time === "number" && typeof existingRacer.run2Time === "number") {
           existingRacer.totalTime = existingRacer.run1Time + existingRacer.run2Time
+          // If totalTime is NaN, set it to null and mark as DNS
+          if (Number.isNaN(existingRacer.totalTime)) {
+            existingRacer.totalTime = null
+            existingRacer.run1Status = "DNS"
+            existingRacer.run2Status = "DNS"
+          }
         }
       } else {
         // Add new racer to the map
@@ -168,20 +200,31 @@ function parseTimeString(timeStr: string | null): { time: number | null | "on co
 
   if (timeStr.toLowerCase().includes("on course")) return { time: "on course", status: "on course" }
 
+  // Check for "--:--.-" or similar patterns (missing times)
+  if (timeStr.includes("--")) return { time: null, status: "DNS" }
+
   try {
     if (timeStr.includes(":")) {
       const [minutes, seconds] = timeStr.split(":")
+      const parsedTime = (Number.parseInt(minutes, 10) * 60 + Number.parseFloat(seconds)) * 1000
+      if (Number.isNaN(parsedTime)) {
+        return { time: null, status: "DNS" }
+      }
       return {
-        time: (Number.parseInt(minutes, 10) * 60 + Number.parseFloat(seconds)) * 1000,
+        time: parsedTime,
         status: "",
       }
     } else {
+      const parsedTime = Number.parseFloat(timeStr) * 1000
+      if (Number.isNaN(parsedTime)) {
+        return { time: null, status: "DNS" }
+      }
       return {
-        time: Number.parseFloat(timeStr) * 1000,
+        time: parsedTime,
         status: "",
       }
     }
   } catch (e) {
-    return { time: null, status: "" }
+    return { time: null, status: "DNS" }
   }
 }

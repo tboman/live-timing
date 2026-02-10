@@ -1,12 +1,12 @@
-import { Suspense } from "react"
 import SkiRacerLeaderboard from "@/components/ski-racer-leaderboard"
+import { ClientOnly } from "@/components/client-only"
 
 export default function Home() {
   return (
     <main className="container mx-auto py-8 px-4">
-      <Suspense fallback={<div className="text-center py-8">Loading leaderboard...</div>}>
+      <ClientOnly>
         <SkiRacerLeaderboard />
-      </Suspense>
+      </ClientOnly>
       <div className="mt-8 text-center text-sm text-gray-500">
         <p>
           To specify a race ID in the URL, use: <code>?raceId=YOUR_RACE_ID</code>

@@ -26,7 +26,11 @@ export interface RaceData {
 
 // Function to fetch race data from live-timing.com
 export const fetchRaceData = async (raceId: string): Promise<RaceData> => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
   try {
+    console.log(`[fetchRaceData] Fetching data for raceId: ${raceId}`);
     // Fetch the data
     const response = await fetch(`https://live-timing.com/includes/aj_race.php?r=${raceId}&&m=1&&u=5`, {
       method: "GET",
@@ -34,26 +38,35 @@ export const fetchRaceData = async (raceId: string): Promise<RaceData> => {
         Accept: "text/plain",
       },
       cache: "no-store",
+      signal: controller.signal, // AbortController signal
     })
+
+    clearTimeout(timeoutId); // Clear timeout if fetch is successful
 
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`)
     }
 
+    console.log(`[fetchRaceData] Response received for raceId: ${raceId}`);
     const data = await response.text()
+    console.log(`[fetchRaceData] Response text read for raceId: ${raceId}`);
 
     // Log a sample of the raw data
     console.log("Raw data sample:", data.substring(0, 500))
 
     // Try the direct parser first
+    console.log(`[fetchRaceData] Trying direct parser for raceId: ${raceId}`);
     const directResult = parseRaceData(data)
+    console.log(`[fetchRaceData] Direct parser result for raceId: ${raceId}: Racers found: ${directResult.racers.length}`);
+    console.log(`[fetchRaceData] Checking directResult.racers.length (type: ${typeof directResult.racers.length}, value: ${directResult.racers.length})`);
 
     // If we got racers, return the result
     if (directResult.racers.length > 0) {
+      console.log(`[fetchRaceData] Returning direct parser result for raceId: ${raceId}`);
       return {
         ...directResult,
         rawData: data.substring(0, 1000), // Include a sample of the raw data for debugging
-      }
+      };
     }
 
     // If no racers were found, try the fallback parser
@@ -67,8 +80,14 @@ export const fetchRaceData = async (raceId: string): Promise<RaceData> => {
       rawData: data.substring(0, 1000), // Include a sample of the raw data for debugging
     }
   } catch (error) {
-    console.error("Error fetching race data:", error)
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      console.error(`[fetchRaceData] Fetch aborted for raceId: ${raceId} due to timeout.`);
+      return { raceName: "Fetch Timeout", racers: [] };
+    }
+    console.error(`[fetchRaceData] Error fetching race data for raceId: ${raceId}:`, error)
     return { raceName: "Error Loading Race", racers: [] }
+  } finally {
+    clearTimeout(timeoutId); // Ensure timeout is always cleared
   }
 }
 
@@ -100,6 +119,7 @@ import { parseRaceData } from "./direct-parser"
 export const formatTime = (timeMs: number | null | "on course"): string => {
   if (timeMs === null) return "--:--.--"
   if (timeMs === "on course") return "On Course"
+  if (Number.isNaN(timeMs) || !Number.isFinite(timeMs)) return "--:--.--"
 
   const totalSeconds = timeMs / 1000
   const minutes = Math.floor(totalSeconds / 60)
