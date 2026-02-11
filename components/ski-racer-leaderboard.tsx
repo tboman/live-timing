@@ -303,8 +303,7 @@ export default function SkiRacerLeaderboard() {
               </TableHead>
               <TableHead>Racer</TableHead>
               <TableHead className="w-16">Club</TableHead>
-              <TableHead className="w-16">Class</TableHead>
-              <TableHead 
+                            <TableHead 
                 className="w-20 text-center cursor-pointer hover:bg-slate-100 transition-colors"
                 onClick={() => handleSortClick("run1")}
               >
@@ -386,10 +385,7 @@ export default function SkiRacerLeaderboard() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="secondary" className="font-mono">
-                        {racer.class}
-                      </Badge>
-                    </TableCell>
+                                          </TableCell>
                     <TableCell className="w-20 font-mono text-center text-sm">
                       {renderRunTime(racer.result1Time, racer.run1Status || "")}
                     </TableCell>
