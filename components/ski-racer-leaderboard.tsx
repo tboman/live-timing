@@ -47,6 +47,9 @@ export default function SkiRacerLeaderboard() {
   const [selectedClub, setSelectedClub] = useState<string | null>(null)
   const [sortColumn, setSortColumn] = useState<"bib" | "run1" | "run2" | "total">("total")
   const [sortAscending, setSortAscending] = useState<boolean>(false)
+  const [hideTotalTimeColumn, setHideTotalTimeColumn] = useState<boolean>(false) // New state
+  const [hideRun2Column, setHideRun2Column] = useState<boolean>(false)
+  const [hideRun1Column, setHideRun1Column] = useState<boolean>(false)
 
   // Function to load race data from the API
   const loadRaceData = async (id: string) => {
@@ -70,6 +73,24 @@ export default function SkiRacerLeaderboard() {
       if (data.racers.length > 0) {
         // Convert the API data to our app's format
         const convertedRacers = data.racers.map((racer, index) => convertToAppRacer(racer, index + 1))
+
+        // Check if all totalTime entries are null or NaN
+        const allTotalTimeMissing = convertedRacers.every(
+          (racer) => racer.totalTime === null || Number.isNaN(racer.totalTime)
+        )
+        setHideTotalTimeColumn(allTotalTimeMissing)
+
+        // Check if all run2Status entries are "DNS"
+        const allRun2DNS = convertedRacers.every(
+          (racer) => racer.run2Status === "DNS"
+        )
+        setHideRun2Column(allRun2DNS)
+
+        // Check if all run1Status entries are "DNS"
+        const allRun1DNS = convertedRacers.every(
+          (racer) => racer.run1Status === "DNS"
+        )
+        setHideRun1Column(allRun1DNS)
 
         // Sort by completion time (timestamp) in ascending order (earliest first)
         const sortedRacers = convertedRacers.sort((a, b) => {
@@ -303,25 +324,28 @@ export default function SkiRacerLeaderboard() {
               </TableHead>
               <TableHead>Racer</TableHead>
               <TableHead className="w-16">Club</TableHead>
-                            <TableHead 
-                className="w-20 text-center cursor-pointer hover:bg-slate-100 transition-colors"
-                onClick={() => handleSortClick("run1")}
-              >
-                Run 1 {sortColumn === "run1" && (sortAscending ? "↑" : "↓")}
-              </TableHead>
-              <TableHead 
-                className="w-20 text-center cursor-pointer hover:bg-slate-100 transition-colors"
-                onClick={() => handleSortClick("run2")}
-              >
-                Run 2 {sortColumn === "run2" && (sortAscending ? "↑" : "↓")}
-              </TableHead>
-              <TableHead 
-                className="w-20 text-center cursor-pointer hover:bg-slate-100 transition-colors"
-                onClick={() => handleSortClick("total")}
-              >
-                Total Time {sortColumn === "total" && (sortAscending ? "↑" : "↓")}
-              </TableHead>
-            </TableRow>
+                                          {!hideRun1Column && (
+                                            <TableHead
+                                              className="w-20 text-center cursor-pointer hover:bg-slate-100 transition-colors"
+                                              onClick={() => handleSortClick("run1")}
+                                            >
+                                              Run 1 {sortColumn === "run1" && (sortAscending ? "↑" : "↓")}
+                                            </TableHead>
+                                          )}                            {!hideRun2Column && (
+                              <TableHead
+                                className="w-20 text-center cursor-pointer hover:bg-slate-100 transition-colors"
+                                onClick={() => handleSortClick("run2")}
+                              >
+                                Run 2 {sortColumn === "run2" && (sortAscending ? "↑" : "↓")}
+                              </TableHead>
+                            )}                            {!hideTotalTimeColumn && (
+                              <TableHead
+                                className="w-20 text-center cursor-pointer hover:bg-slate-100 transition-colors"
+                                onClick={() => handleSortClick("total")}
+                              >
+                                Total Time {sortColumn === "total" && (sortAscending ? "↑" : "↓")}
+                              </TableHead>
+                            )}            </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading && racers.length === 0 ? (
@@ -384,17 +408,22 @@ export default function SkiRacerLeaderboard() {
                         {racer.club}
                       </Badge>
                     </TableCell>
-                    <TableCell>
-                                          </TableCell>
-                    <TableCell className="w-20 font-mono text-center text-sm">
-                      {renderRunTime(racer.result1Time, racer.run1Status || "")}
-                    </TableCell>
-                    <TableCell className="w-20 font-mono text-center text-sm">
-                      {renderRunTime(racer.result2Time, racer.run2Status || "")}
-                    </TableCell>
-                    <TableCell className="w-20 font-mono text-center text-sm font-semibold">
-                      {typeof racer.totalTime === "number" && !Number.isNaN(racer.totalTime) ? formatTime(racer.totalTime) : "--:--.--"}
-                    </TableCell>
+
+                    {!hideRun1Column && (
+                      <TableCell className="w-20 font-mono text-center text-sm">
+                        {renderRunTime(racer.result1Time, racer.run1Status || "")}
+                      </TableCell>
+                    )}
+                    {!hideRun2Column && (
+                      <TableCell className="w-20 font-mono text-center text-sm">
+                        {renderRunTime(racer.result2Time, racer.run2Status || "")}
+                      </TableCell>
+                    )}
+                    {!hideTotalTimeColumn && (
+                      <TableCell className="w-20 font-mono text-center text-sm font-semibold">
+                        {typeof racer.totalTime === "number" && !Number.isNaN(racer.totalTime) ? formatTime(racer.totalTime) : "--:--.--"}
+                      </TableCell>
+                    )}
                   </TableRow>
                 )
               })
