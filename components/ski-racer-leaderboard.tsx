@@ -45,6 +45,7 @@ export default function SkiRacerLeaderboard() {
   const [raceId, setRaceId] = useState<string>(queryRaceId || "299423")
   const [inputRaceId, setInputRaceId] = useState<string>(queryRaceId || "299423")
   const [selectedClub, setSelectedClub] = useState<string | null>(null)
+  const [selectedClass, setSelectedClass] = useState<string | null>(null)
   const [sortColumn, setSortColumn] = useState<"bib" | "run1" | "run2" | "total">("total")
   const [sortAscending, setSortAscending] = useState<boolean>(false)
   const [hideTotalTimeColumn, setHideTotalTimeColumn] = useState<boolean>(false) // New state
@@ -362,7 +363,7 @@ export default function SkiRacerLeaderboard() {
                 </TableCell>
               </TableRow>
                         ) : (
-                          sortedRacers.map((racer, index) => {
+                          (selectedClass ? sortedRacers.filter(r => r.class === selectedClass) : sortedRacers).map((racer, index) => {
                             const status = getRacerStatus(racer)
                             const isClubHighlighted = selectedClub && selectedClub === racer.club
                             return (
@@ -384,7 +385,21 @@ export default function SkiRacerLeaderboard() {
                         {racer.bibNumber}
                       </Badge>
                     </TableCell>
-                    <TableCell>{racer.name}{racer.class ? <span className="text-gray-400 ml-1">({racer.class})</span> : null}</TableCell>
+                    <TableCell>
+                      {racer.name}
+                      {racer.class ? (
+                        <span
+                          className={`ml-1 cursor-pointer transition-colors ${
+                            selectedClass === racer.class
+                              ? "text-blue-500 font-semibold"
+                              : "text-gray-400 hover:text-blue-400"
+                          }`}
+                          onClick={() => setSelectedClass(selectedClass === racer.class ? null : racer.class)}
+                        >
+                          ({racer.class})
+                        </span>
+                      ) : null}
+                    </TableCell>
                     <TableCell>
                       <Badge 
                         variant="outline" 
