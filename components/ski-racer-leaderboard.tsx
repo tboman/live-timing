@@ -384,7 +384,7 @@ export default function SkiRacerLeaderboard() {
                         {racer.bibNumber}
                       </Badge>
                     </TableCell>
-                    <TableCell>{racer.name}</TableCell>
+                    <TableCell>{racer.name}{racer.class ? <span className="text-gray-400 ml-1">({racer.class})</span> : null}</TableCell>
                     <TableCell>
                       <Badge 
                         variant="outline" 
