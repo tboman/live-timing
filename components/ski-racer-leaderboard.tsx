@@ -170,44 +170,34 @@ export default function SkiRacerLeaderboard() {
 
   // Sort racers based on selected column
   const sortedRacers = [...racers].sort((a, b) => {
-    // Check if racers have DNS or DNF status - push to bottom
-    const aHasDNSOrDNF = a.run1Status === "DNS" || a.run2Status === "DNS" || a.run1Status === "DNF" || a.run2Status === "DNF"
-    const bHasDNSOrDNF = b.run1Status === "DNS" || b.run2Status === "DNS" || b.run1Status === "DNF" || b.run2Status === "DNF"
-
-    // If only one has DNS/DNF, that one goes to the bottom
-    if (aHasDNSOrDNF && !bHasDNSOrDNF) return 1
-    if (!aHasDNSOrDNF && bHasDNSOrDNF) return -1
-    
-    // If both have DNS/DNF, keep original order
-    if (aHasDNSOrDNF && bHasDNSOrDNF) return 0
-
-    let aValue: number | string = 0
-    let bValue: number | string = 0
-
     if (sortColumn === "bib") {
-      aValue = a.bibNumber
-      bValue = b.bibNumber
-    } else if (sortColumn === "run1") {
+      return sortAscending ? a.bibNumber - b.bibNumber : b.bibNumber - a.bibNumber
+    }
+
+    // For time columns, use Infinity for any racer that doesn't have a valid
+    // time for *this specific column* — so they sink to the bottom regardless
+    // of their status in other runs.
+    let aValue: number
+    let bValue: number
+
+    if (sortColumn === "run1") {
       aValue = typeof a.result1Time === "number" ? a.result1Time : Infinity
       bValue = typeof b.result1Time === "number" ? b.result1Time : Infinity
     } else if (sortColumn === "run2") {
       aValue = typeof a.result2Time === "number" ? a.result2Time : Infinity
       bValue = typeof b.result2Time === "number" ? b.result2Time : Infinity
     } else {
-      aValue = a.totalTime ?? Infinity
-      bValue = b.totalTime ?? Infinity
+      aValue = typeof a.totalTime === "number" && !Number.isNaN(a.totalTime) ? a.totalTime : Infinity
+      bValue = typeof b.totalTime === "number" && !Number.isNaN(b.totalTime) ? b.totalTime : Infinity
     }
 
-    if (typeof aValue === "string" || typeof bValue === "string") {
-      return sortAscending 
-        ? String(aValue).localeCompare(String(bValue))
-        : String(bValue).localeCompare(String(aValue))
-    }
-    // For time columns, invert the logic: lower times are better (faster)
-    if (sortColumn !== "bib") {
-      return sortAscending ? bValue - aValue : aValue - bValue
-    }
-    return sortAscending ? aValue - bValue : bValue - aValue
+    // Both missing a time for this column — keep original order
+    if (aValue === Infinity && bValue === Infinity) return 0
+    if (aValue === Infinity) return 1
+    if (bValue === Infinity) return -1
+
+    // Lower times are better (faster); sortAscending=false means fastest first
+    return sortAscending ? bValue - aValue : aValue - bValue
   })
 
   // Handle sort column click
